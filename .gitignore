@@ -1,0 +1,12 @@
+.DS_Store
+*/.DS_Store
+.RData
+.Rhistory
+papers/
+catch-up/
+mnem_manual.pdf
+pattern-recognition-and-machine-learning/
+meeting/
+AWS/
+result/
+testing_mnem_parallel.R
