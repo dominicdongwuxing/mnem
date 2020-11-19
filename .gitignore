@@ -8,5 +8,9 @@ mnem_manual.pdf
 pattern-recognition-and-machine-learning/
 meeting/
 AWS/
+<<<<<<< HEAD
 local_result/
+=======
+result/
+>>>>>>> d230968d48e0fcf98edccdb3f8409163734c41d4
 testing_mnem_parallel.R
