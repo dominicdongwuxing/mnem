@@ -1,55 +1,33 @@
-#library(ssh)
 library(mnem)
 library(Cairo)
-setwd('/Volumes/Macintosh HD - Data/study/yr2sem2/rotation1/result/mnem')
-source('/Volumes/Macintosh HD - Data/study/yr2sem2/rotation1/code/functions.R')
-dir.create('combined mnem')
+library(ggplot2)
+library(ggfortify)
+setwd('/Volumes/Macintosh HD - Data/study/yr2sem2/rotation1/local_result')
+dir.create('data')
 
-# load the dimension reduction results 
-logodd.umap = readRDS('../dim reduction/logoddumap.rds')
-logodd.tsne = readRDS('../dim reduction/logoddtsne.rds')
-count.umap = readRDS('../dim reduction/countumap.rds')
-count.tsne = readRDS('../dim reduction/counttsne.rds')
-
-# analysis the mnem results for different parameters
-
-# keep track of parameter sets that don't 
-lack.list <- list()
-
-# record the best log likelihood and k among all runs for each parameter setting
-best.ll.k<- NULL
-
+# combine the mnem results for different parameters
 for (type in c('random','networks','cluster','cluster2','cluster3')){
   for (ksel1 in c('kmeans','hc')){
     for(ksel2 in c('silhouette','AIC','BIC')){
       # skip combinations when hc is used in ksel1, but silhouette is not used in ksel2
       if (!(ksel1 == 'hc' && ksel2 != 'silhouette')){
         for (ksel3 in c('cor','euclidean')){
-          if (type %in% c('random','networks')){
-            for (completeness in c(T,F)){
-              # analyze individual run results with T or F
-              parameters <- paste(type,completeness,ksel1,ksel2,ksel3,sep='_')
-              res <- analyze.mnem (parameters,lack.list)
-              best.ll.k <- rbind(best.ll.k,res[[1]])
-              lack.list <- res[[2]]
-            }
-          }
-          else{
-            # analyze individual run results with only T 
-            parameters <- paste(type,'TRUE',ksel1,ksel2,ksel3,sep='_')
-            res <- analyze.mnem (parameters,lack.list)
-            best.ll.k <- rbind(best.ll.k,res[[1]])
-            lack.list <- res[[2]]
-          }
+          # analyze individual run results with T or F
+          parameters <- paste(type,completeness,ksel1,ksel2,ksel3,sep='_')
+          files <- list.files(pattern = parameters)
+          mnem <- combine.mnem (parameters,files)
+          saveRDS(mnem,file = paste0('./data/',parameter,'.rds'))
         }
       }
     }
   }
 }
 
-colnames(best.ll.k) <- c('parameter','ll','k')
+# record the best log likelihood and k among all runs for each parameter setting
+result.summary <- make.summary('./mnem/data')
+saveRDS(result.summary,file='summary.rds')
 
-saveRDS(lack.list,file='lack.rds')
-saveRDS(best.ll.k,file='bestllk.rds')
+# draw graph to compare various type, k and complete
+plot.summary(result.summary, path = './graphs')
 
 

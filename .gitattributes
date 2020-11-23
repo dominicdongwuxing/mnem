@@ -1,8 +1,2 @@
-data/GSM2396856_dc_3hr.mtx.txt filter=lfs diff=lfs merge=lfs -text
-<<<<<<< HEAD
 result/data/normalized_transformed_data.csv filter=lfs diff=lfs merge=lfs -text
 result/data/logodd.csv filter=lfs diff=lfs merge=lfs -text
-
-=======
->>>>>>> d230968d48e0fcf98edccdb3f8409163734c41d4
-result/data/loggodd.csv filter=lfs diff=lfs merge=lfs -text

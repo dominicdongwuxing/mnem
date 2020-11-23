@@ -22,7 +22,7 @@
 # and performs normalization and transformation using the Linnorm package and returns
 # the processed data
 # it depends on packages : Matrix, Linnorm
-preprocess.data <- function(data.path = '.'){
+preprocessData <- function(data.path = '.'){
   # get raw expression data, row: E gene counts; column: individual cell
   raw.data <- readMM(paste0(data.path,'/GSM2396856_dc_3hr.mtx.txt'))
   
@@ -69,7 +69,7 @@ preprocess.data <- function(data.path = '.'){
 # computes and outputs the log odd matrix using kcde function from library ks.
 # by default, it uses parallel computing with 4 cores. 
 # it depends on packages: ks, snowfall
-compute.logodd <- function(data = NULL, parallel = 4) {
+computeLogodd <- function(data = NULL, parallel = 4) {
   # initialize parallel computing
   sfInit(parallel = TRUE, cpus = parallel)
   sfLibrary(ks)
@@ -161,7 +161,7 @@ compute.logodd <- function(data = NULL, parallel = 4) {
 # plots the network, the convergence, the histogram of responsibilities, 
 # the distribution of max confidence among cells, the plots are saved as svg 
 # it depends on packages: mnem, snowfall, umap, ggfortify, ggplot2, gridExtra
-find.and.visualize.components <- function(
+findAndVisualizeComponents <- function(
   data = NULL, 
   mnem.result = NULL, 
   umap.result = NULL, 
@@ -172,6 +172,7 @@ find.and.visualize.components <- function(
   complete = NULL,
   parallel = NULL,
   save.path = '.',
+  ks = NULL,
   ...){
   # do umap on data if not given
   if (is.null(umap.result)){
@@ -198,12 +199,20 @@ find.and.visualize.components <- function(
     if (strategy == 'mnemk'){
       # set the default ksel for mnemk if ksel if not given
       if (is.null(ksel)){ksel = c("kmeans", "silhouette", "cor")}
+      
+      # try k from 1 to 5 is ks not given
+      if (is.null(ks)){ks = seq_len(5)}
+      
+      # do mnemk
       mnem.result <- mnemk(data, ksel=ksel,starts=starts,type=type,complete=complete,
-                           parallel=parallel, ...)
+                           parallel=parallel, ks=ks, ...)
+
     }
     else if (strategy == 'mnem'){
       # set a good ksel combination for mnem if ksel is not given
       if (is.null(ksel)){ksel = c("kmeans", "silhouette", "euclidean")}
+      
+      # do mnem
       mnem.result <- mnem(data, ksel = ksel,starts=starts,type=type,complete=complete,
                           parallel=parallel, ...)
     }
@@ -275,21 +284,21 @@ createStudy <- function(stages = c('preprocess','log odd','analyze'),
                         data.path = '.',
                         save.path = '.', ...){
   if ('preprocess' %in% stages){
-    normalized.transformed.data <- preprocess.data(data.path=data.path)
+    normalized.transformed.data <- preprocessData(data.path=data.path)
   }
   else {
     return ('No Result')
   }
   
   if ('log odd' %in% stages){
-    R <- compute.logodd (data = normalized.transformed.data, parallel = 4)
+    R <- computeLogodd (data = normalized.transformed.data, parallel = 4)
   }
   else {
     return (normalized.transformed.data)
   }
   
   if ('analyze' %in% stages){
-    mnem.result <- find.and.visualize.components(
+    mnem.result <- findAndVisualizeComponents(
       data = NULL, 
       mnem.result = NULL, 
       umap.result = NULL, 
@@ -300,6 +309,7 @@ createStudy <- function(stages = c('preprocess','log odd','analyze'),
       completeness = NULL,
       parallel = NULL,
       save.path = save.path,
+      ks = NULL,
       ...) 
     return (mnem.result)
   }
@@ -384,18 +394,18 @@ graph.log.likelihood <- function (result, save.path = '.'){
   par = (mar=c(5,4,4,6) )
   par(oma=c(0,0,0,1))
   plot(k, penalized, ylim = c(min(penalized),max(penalized)), pch = 16, type = 'b', col = 'red',
-       xlab = '', ylab = '', main = 'log likelihood ratio under various k', axes = F)
+       xlab = '', ylab = '', main = 'log likelihood ratio under various k', axes = F, xaxt = "n")
   axis(2, pretty(range(penalized)),col = 'red', col.axis = 'red')
   mtext("penalized",side = 2, line = 2.5, col = 'red')
   box()
   
   par(new = TRUE)
   plot(k, raw, ylim = c(min(raw),max(raw)), pch = 16, type = 'b', col = 'blue', axes = F,
-       xlab = '', ylab = '')
+       xlab = '', ylab = '', xaxt = "n")
   axis(4, pretty(range(raw)),col = 'blue', col.axis = 'blue')
   mtext('raw', col = 'blue', line = 0, outer = T, side = 4)
   
-  axis(1)
+  axis(1, at = 1:k)
   mtext('k', side = 1, line = 2.5)
   legend('bottomright',legend=c('penalized','raw'), text.col = c('red','blue'), 
          pch = c(16,16), col = c('red','blue'), cex = 0.7)
@@ -448,6 +458,88 @@ check.sureness <- function (result, count.data, log.data, cluster = 0){
          lty = c(2,2), col = c('blue','red'),cex = 0.5,text.width = 0.1)
   par(mfrow=c(1,1))
 }
+
+# graph a umap result with a mnem result clustering
+graph.umap <- function (umap, mnem, title, save.path = '.'){
+  soft <- getAffinity(x = mnem$probs, mw = mnem$mw, affinity = 0) 
+  k <- dim(soft)[1]
+  if (k == 2){
+    svg(filename = paste0(save.path, '/UMAP with clustering.svg'), width = 9.4, height = 9.4)
+    # make a fake graph just to get the legend
+    a <- data.frame(x=seq(2),y=seq(2))
+    p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green')))+
+      scale_color_manual(name='',values = c('red','green'),labels=c('100% k=1','100% k=2'))
+    
+    mylegend <- g_legend(p0)
+    
+    p <- ggplot(umap$layout, aes('umap1','umap2'))  +
+      geom_point(mapping = aes(x = umap$layout[,1], y = umap$layout[,2]),color = rgb(soft[1,],soft[2,],0,0.35), size = 0.1) +
+      ggtitle(title) + xlab('umap1') + ylab('umap2') + theme(plot.title = element_text(hjust = 0.5,size = 13))
+    
+    grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
+    dev.off()
+  }
+  
+  else if (k == 3){
+    svg(filename = paste0(save.path,'/UMAP with clustering.svg'), width = 9.4, height = 9.4)
+    # make a fake graph just to get the legend
+    a <- data.frame(x=seq(3),y=seq(3))
+    p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green','blue')))+
+      scale_color_manual(name='',values = c('red','green','blue'),labels=c('100% k=1','100% k=2','100% k=3'))
+    
+    mylegend <- g_legend(p0)
+    
+    p <- ggplot(umap$layout, aes('umap1','umap2'))  +
+      geom_point(mapping = aes(x = umap$layout[,1], y = umap$layout[,2]),color = rgb(soft[1,],soft[2,],soft[3,],0.35), size = 0.1) +
+      ggtitle(title) + xlab('umap1') + ylab('umap2') + theme(plot.title = element_text(hjust = 0.5,size = 13))
+    
+    grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
+    dev.off()
+  }
+}
+
+graph.tSNE <- function (tsne, mnem, title){
+  soft <- getAffinity(x = mnem$probs, mw = mnem$mw, affinity = 0) 
+  k <- dim(soft)[1]
+  # make a fake graph just to get the legend
+  a <- data.frame(x=seq(3),y=seq(3))
+  p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green','blue')))+
+    scale_color_manual(name='',values = c('red','green','blue'),labels=c('100% k=1','100% k=2','100% k=3'))
+  
+  mylegend <- g_legend(p0)
+  
+  p <- ggplot(tsne$Y, aes('tsne1','tsne2'))  +
+    geom_point(mapping = aes(x = tsne$Y[,1], y = tsne$Y[,2]),color = rgb(soft[1,],soft[2,],soft[3,],0.35), size = 0.1) +
+    ggtitle(title) + xlab('tsne1') + ylab('tsne2') 
+  
+  grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
+}
+
+# discover how different parameter setting affects k 
+explore.k <- function(data){
+  ksel1 <- c('kmeans','hc')
+  ksel2 <- c('silhouette','BIC','AIC')
+  ksel3 <- c('cor','euclidean','manhattan')
+  ks <- list()
+  
+  for (i in ksel1){
+    for (j in ksel2){
+      for (k in ksel3){
+        if (!(i == 'hc' && (j == 'BIC' || j == 'AIC'))){
+          ksel <- paste(i,j,k)
+          result <- mnem:::learnk(data, ksel = c(i,j,k))
+          ks[[ksel]] <- result$k
+          saveRDS(result, file = paste0(i,j,k,'.rds'))
+        }
+      }
+    }
+  }
+  
+  return (ks)
+}
+
+
+# The next 3 functions are not used
 
 # graph the pca, umap and tSNE on log odd data, using the mnemk result
 graph.dim.reduction.loggodd <- function(
@@ -665,84 +757,7 @@ graph.dim.reduction.count <- function(
   
 }
 
-# graph a umap result with a mnem result clustering
-graph.umap <- function (umap, mnem, title, save.path = '.'){
-  soft <- getAffinity(x = mnem$probs, mw = mnem$mw, affinity = 0) 
-  k <- dim(soft)[1]
-  if (k == 2){
-    svg(filename = paste0(save.path, '/UMAP with clustering.svg'), width = 9.4, height = 9.4)
-    # make a fake graph just to get the legend
-    a <- data.frame(x=seq(2),y=seq(2))
-    p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green')))+
-      scale_color_manual(name='',values = c('red','green'),labels=c('100% k=1','100% k=2'))
-    
-    mylegend <- g_legend(p0)
-    
-    p <- ggplot(umap$layout, aes('umap1','umap2'))  +
-      geom_point(mapping = aes(x = umap$layout[,1], y = umap$layout[,2]),color = rgb(soft[1,],soft[2,],0,0.35), size = 0.1) +
-      ggtitle(title) + xlab('umap1') + ylab('umap2') + theme(plot.title = element_text(hjust = 0.5,size = 13))
-    
-    grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
-    dev.off()
-  }
-  
-  else if (k == 3){
-    svg(filename = paste0(save.path,'/UMAP with clustering.svg'), width = 9.4, height = 9.4)
-    # make a fake graph just to get the legend
-    a <- data.frame(x=seq(3),y=seq(3))
-    p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green','blue')))+
-      scale_color_manual(name='',values = c('red','green','blue'),labels=c('100% k=1','100% k=2','100% k=3'))
-    
-    mylegend <- g_legend(p0)
-    
-    p <- ggplot(umap$layout, aes('umap1','umap2'))  +
-      geom_point(mapping = aes(x = umap$layout[,1], y = umap$layout[,2]),color = rgb(soft[1,],soft[2,],soft[3,],0.35), size = 0.1) +
-      ggtitle(title) + xlab('umap1') + ylab('umap2') + theme(plot.title = element_text(hjust = 0.5,size = 13))
-    
-    grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
-    dev.off()
-  }
-}
 
-graph.tSNE <- function (tsne, mnem, title){
-  soft <- getAffinity(x = mnem$probs, mw = mnem$mw, affinity = 0) 
-  k <- dim(soft)[1]
-  # make a fake graph just to get the legend
-  a <- data.frame(x=seq(3),y=seq(3))
-  p0 <- ggplot(a)+geom_point(mapping=aes(x=x,y=y,col=c('red','green','blue')))+
-    scale_color_manual(name='',values = c('red','green','blue'),labels=c('100% k=1','100% k=2','100% k=3'))
-  
-  mylegend <- g_legend(p0)
-  
-  p <- ggplot(tsne$Y, aes('tsne1','tsne2'))  +
-    geom_point(mapping = aes(x = tsne$Y[,1], y = tsne$Y[,2]),color = rgb(soft[1,],soft[2,],soft[3,],0.35), size = 0.1) +
-    ggtitle(title) + xlab('tsne1') + ylab('tsne2') 
-  
-  grid.arrange(p, mylegend, nrow = 1,widths = c(10,1))
-}
-
-# discover how different parameter setting affects k 
-explore.k <- function(data){
-  ksel1 <- c('kmeans','hc')
-  ksel2 <- c('silhouette','BIC','AIC')
-  ksel3 <- c('cor','euclidean')
-  ks <- list()
-  
-  for (i in ksel1){
-    for (j in ksel2){
-      for (k in ksel3){
-        if (!(i == 'hc' && (j == 'BIC' || j == 'AIC'))){
-          ksel <- paste(i,j,k)
-          result <- mnem:::learnk(data, ksel = c(i,j,k))
-          ks[[ksel]] <- result$k
-          saveRDS(result, file = paste0(i,j,k,'.rds'))
-        }
-      }
-    }
-  }
-  
-  return (ks)
-}
 
 ##########################################################################################
 
@@ -752,9 +767,8 @@ explore.k <- function(data){
 # extract mnem files and combine it, save the combined version
 combine.mnem <- function(parameters, files){
   mnems <- readRDS(files[1])
-  # if type is cluster then there should only be 1 file since there are 10 runs
-  # otherwise there should be 10 runs and nothing needs to be done
-  if (unlist(strsplit(parameters,'_'))[1] != 'cluster'){
+  # if there is only 1 file then it doesn't need to be combined
+  if (length(files) > 1){
     for (i in 2:length(files)){
       mnems$limits[[i]] <- readRDS(files[i])$limits[[1]]
     }
@@ -778,83 +792,80 @@ combine.mnem <- function(parameters, files){
   return(mnems)
 }
 
-# this function processes the combined mnem result
-# it picks the best run and then 
-# plots and save: histogram of responsibilities, distribution of max confidence
-# plot convergence and the network 
-# if k=2 or 3, plot the soft clustering on count and umap
-# also returns the best likelihood and k among all runs for this parameter setting
-process.combined.mnem <- function(mnem,parameters){
-  # firstly find out which is the best run by finding the highest log likelihood 
-  # get the latest log likelihood for each run and find out the index of the best run
-  idx <- which.max(sapply(seq(length(mnem$limits)), 
-                          function (x) mnem$limits[[x]]$ll[length(mnem$limits[[x]]$ll)]))
-  # get responsibilities, k by l
-  gamma <- getAffinity(x = mnem$limits[[idx]]$probs, mw = mnem$limits[[idx]]$mw)
-  # draw and save histogram of responsibilities
-  svg(filename=paste0('./',parameters,'/','Histogram of responsibilities.svg'))
-  hist(gamma, xlab = "responsibilities", ylab = 'count',
-       main = "Histogram of responsibilities")
-  dev.off()
-  # draw and save distribution of max confidence 
-  svg(filename=paste0('./',parameters,'/','Distribution of max confidence among cells.svg'))
-  confidence <- apply(gamma, 2, max) 
-  # plot histogram of Distribution of max confidence among cells
-  h <- hist(confidence)
-  h$density <- h$counts/sum(h$counts)
-  par(mfrow=c(1,1))
-  plot(h, freq = F, xlab = 'max confidence among components', ylab = 'fraction of cells',
-       main = 'Distribution of max confidence among cells', col = 'grey')
-  dev.off()
-  # draw and save plot convergence
-  svg(filename=paste0('./',parameters,'/','convergence.svg'))
-  par(mfrow=c(2,2))
-  par(mar =c(5.1, 5.1, 4.1, 2.1))
-  plotConvergence(mnem, pch = 20, cex.main = 0.8, cex.lab = 0.8)
-  dev.off()
-  # draw and save network if k < 10
-  # get k
-  best.k <- mnem$limits[[idx]]$k
-  if (best.k < 10){
-    svg(filename=paste0('./',parameters,'/','network.svg'))
-    par(mar=c(1,1,1,1))
-    plot(mnem,egene = F,cells = F,bestCell = F)
-    dev.off()
-  }
-  
-  # draw and save soft clustering on count and logodd
-  if (best.k == 2 || best.k == 3){
-    graph.dim.reduction(
-      result = mnem,
-      logodd.umap = logodd.umap,
-      logodd.tsne = logodd.tsne,
-      count.umap = count.umap,
-      count.tsne = count.tsne,
-      path = paste0('./',parameters))
-  }
+# this function reads the mnem results for different parameter settings
+# and summarises results into a matrix containing 
+# the parameter setting itself, the log likelihood and its sd (if there are replicates),
+# number of k and the molecular weights
+make.summary <- function(path){
+  result.summary<- NULL
+  # get all the rds files 
+  files <- list.files(path = path, pattern = '.rds')
+  for (file in files){
+    mnem.result <- readRDS(paste0(path,'/',file))
+    parameters <- strsplit(strsplit(file,'.rds')[[1]],'_')[[1]]
+    type <- parameters[1]
+    complete <- parameters[2]
+    ksel1 <- parameters[3]
+    ksel2 <- parameters[4]
+    ksel3 <- parameters[5]
+    ll <- mnem.result$ll
+    k <- length(mnem.result$mw)
+    mw <- paste(unlist(lapply(mnem.result$mw, function(x) round(x,2))),collapse = ',')
 
-  # get the highest likelihood 
-  best.ll <- mnem$limits[[idx]]$ll[length(mnem$limits[[idx]]$ll)]
-  
-  return(c(parameters,best.ll, best.k))
+    # calculate the standard deviation of the log likelihood at the each of each convergence 
+    #sd <- sd(unlist(lapply(seq_len(length(mnem.result$limits)), function (x) mnem.result$limits[[x]]$ll[length(mnem.result$limits[[x]]$ll)])))
+
+    res.vec <- c(type,complete,ksel1,ksel2,ksel3,ll,k,mw)
+    result.summary <- rbind(result.summary,res.vec)
+  }
+  colnames(result.summary) <- c('type','complete','clustering method',
+                                'model selection criteria','distance metric',
+                                'best loglikelihood','number of k','molecular weights')
+  rownames(result.summary) <- NULL
+  return (result.summary)
 }
 
-# this function analyzes the results of a certain parameter for mnem
-analyze.mnem <- function (parameters,lack.list){
-  print(paste('processing',parameters,'......'))
-  # find all files that contain the data for this parameter setting
-  files <- list.files(pattern = parameters)
-  if (length(files) != 0){
-    # create a directory to store the results for this parameter
-    dir.create(parameters)
-    mnem <- combine.mnem (parameters,files)
-    best.ll.vec <- process.combined.mnem(mnem,parameters)
-    lack.list[[parameters]] <- length(mnem$limits)
-    print(paste(parameters,'done'))
-  }
-  else{
-    lack.list[[parameters]] <- 0
-    best.ll.vec <- c(parameters,'NA','NA')
-  }
-  return (list(best.ll.vec, lack.list))
+# plot the summary of mnem result and save to path 
+# the graph compares various type, k and complete
+plot.summary <- function(result.summary, path = '.'){
+  svg(filename = paste0(path,'/parameter comparison.svg'))
+  result.summary <- as.data.frame(result.summary)
+  types <- c('random','cluster','cluster2','cluster3','networks')
+  # for k = 2 or 3, and complete = true or false, we build four vectors of length 
+  # 5 = number of types
+  # each vector at each position is the best log likelihood under the particular type,
+  # complete, and number of k
+  k2T <- unlist(lapply(types, 
+                        function (x) 
+                          as.numeric(max(result.summary[which(result.summary['type'] == x 
+                                         & result.summary['number of k'] == 2 
+                                         & result.summary['complete'] == 'TRUE'),
+                                   'best loglikelihood']))))
+  k2F <- unlist(lapply(types, 
+                        function (x) 
+                          as.numeric(max(result.summary[which(result.summary['type'] == x 
+                                         & result.summary['number of k'] == 2 
+                                         & result.summary['complete'] == 'FALSE'),
+                                   'best loglikelihood']))))
+  k3T <- unlist(lapply(types, 
+                        function (x) 
+                          as.numeric(max(result.summary[which(result.summary['type'] == x 
+                                         & result.summary['number of k'] == 3 
+                                         & result.summary['complete'] == 'TRUE'),
+                                   'best loglikelihood']))))
+  k3F <- unlist(lapply(types, 
+                       function (x) 
+                         as.numeric(max(result.summary[which(result.summary['type'] == x 
+                                        & result.summary['number of k'] == 3 
+                                        & result.summary['complete'] == 'FALSE'),
+                                  'best loglikelihood']))))
+  
+  p <- ggplot() + 
+    geom_line(aes(x=types,y=k2T,col='k = 2', linetype='observed'), group='k=2, observed',  size = 0.5) +
+    geom_line(aes(x=types,y=k2F,col='k = 2', linetype='expected'),group='k=2, expected',  size = 0.5) +
+    geom_line(aes(x=types,y=k3T,col='k = 3', linetype='observed'), group='k=3, observed', size = 0.5) +
+    geom_line(aes(x=types,y=k3F,col='k = 3', linetype='expected'), group='k=3, expected',  size = 0.5) + xlab('') + ylab('log likelihood') +
+    theme_bw() + scale_color_discrete('number of k') + scale_linetype_discrete('log likelihood')
+    
+  dev.off()
 }

@@ -64,14 +64,5 @@ count.umap <- readRDS('./dim reduction/countumap.rds')
 # discover how different parameter setting affects k 
 ks <- explore.k (mnem:::modData(log.data))
 saveRDS(ks, file = 'learnk.rds')
-# discovered that in two combinations, the best k = kmax = 10
-# therefore try more k (up  to 20) to get the best k
-mod.data <- mnem:::modData(log.data)
-kmeans.BIC.cor <- mnem:::learnk(mod.data, kmax = 100, ksel = c('kmeans','BIC','cor'))
-ks[['kmeans BIC cor']] <- kmeans.BIC.cor$k
-saveRDS(kmeans.BIC.cor, file = 'kmeansBICcor.rds')
 
-kmeans.AIC.cor <- mnem:::learnk(mod.data, kmax = 100, ksel = c('kmeans','AIC','cor'))
-ks[['kmeans AIC cor']] <- kmeans.AIC.cor$k
-saveRDS(kmeans.AIC.cor, file = 'kmeansAICcor.rds')
 
