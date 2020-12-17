@@ -1,2 +1,2 @@
 result/data/normalized_transformed_data.csv filter=lfs diff=lfs merge=lfs -text
-result/data/logodd.csv filter=lfs diff=lfs merge=lfs -text
+result/data/logodds.csv filter=lfs diff=lfs merge=lfs -text
