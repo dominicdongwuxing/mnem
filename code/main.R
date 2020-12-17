@@ -66,7 +66,7 @@ logodds.pca <- prcomp(t(R))
 # to do M&NEM on log odd data, first explore the best k 
 # the first method is to set k = {1,2,3,4,5} and use the mnemk function
 # which returns the best model among the 5 k values
-mnemk.result <- mnemk(R,ks=1:5)
+mnemk.result <- mnemk(R,ks=1:5,starts=10)
 
 # graph the raw and penalized log likelihood ratio along k values
 graph.log.likelihood (mnemk.result)
@@ -83,6 +83,15 @@ ks <- explore.k(R)
 ggballoonplot(ks, x = "ksel2", y = "k", size = 2, fill='black',
               facet.by = c("ksel1",'ksel3'),
               ggtheme = theme_bw()) + theme(axis.text=element_text(size=12)) 
+
+# we know that ksel = c('kmeans','AIC'/'BIC'/'silhouette','euclidean') will give
+# us K=2, and we want to compare the mnem result with such ksel setting with mnemk
+# result when K=2 (the best K)
+# run mnem by setting ksel = c('kmeans','AIC'/'BIC'/'silhouette','euclidean')
+# with 10 replications each and save the files in the current directory
+# compare mnemk (type = 'netowrks', complete = F) with the same setting using
+# mnem 
+plot.mnemk.mnem.comparison (mnemk.F,path = '.')
 
 # now, use mnem function with R, and explore some other hyper-parameters:
 # in addition to all ksel combinations, also try different initialization methods: 
@@ -131,11 +140,8 @@ result.summary <- make.summary('./data')
 plot.summary(result.summary)
 
 # do wilcox test to compare different methods 
-test.methods('./mnem/useful data')
+test.methods('./data')
 
-# compare mnemk (type = 'netowrks', complete = F) with the same setting using
-# mnem 
-plot.mnemk.mnem.comparison (mnemk.F,path = './mnem/for comparison with mnemk')
 
 
 # finally we conclude that the best set of hyper-parameters for mnem are:
