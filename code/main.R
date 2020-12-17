@@ -88,15 +88,13 @@ ggballoonplot(ks, x = "ksel2", y = "k", size = 2, fill='black',
 # in addition to all ksel combinations, also try different initialization methods: 
 # set type = 'networks'/'random'/'cluster'/'cluster2'/'cluster3'
 # set complete = T/F, and do 100 replications for each combination by using HPC
-# (upload the code onto ETH Euler)
+# (ETH Euler). Note that for "cluster2" and "cluster3" only one replication is needed
+# because they will produce the same result
 # for type=networks/random, I set starts=1 in mnem and run for 100 times separately
 # (each run/start is stochastic) and combine them back into one file so that it is faster 
 # for type=cluster I set starts=100 and run for 1 time, this is because it is stochastic
 # but the first start is always the same, so I would get same results if I set starts=1
 # and run 100 times; for type=cluster2/3, it uses the same start (deterministic), 
-# if it is kmeans (stochastic) I set start=100
-# and run for 1 time; if it is hc then I set start=1 and run for only 1 time since
-# hc is also deterministic 
 
 # now download all the results into the working directory
 # and create a new directory called "data" to store the combined files
@@ -141,9 +139,15 @@ plot.mnemk.mnem.comparison (mnemk.F,path = './mnem/for comparison with mnemk')
 
 
 # finally we conclude that the best set of hyper-parameters for mnem are:
-# type=networks, k=3, complete=F, and we do 10 replications and plot the
-# best result among the 10.
-mnem.final.result <- mnem(R,starts=10,k=2)
+# type=networks, k=2, complete=F, and we analyze the result
+mnem.final.result <- readRDS('./data/networks_FALSE_kmeans_silhouette_euclidean.rds')
+
+# we visualize the result of the best MNEM model
+findAndVisualizeComponents(
+        data = R, 
+        mnem.result = mnem.final.result, 
+        umap.result = logodds.umap, 
+        save.path = '.')
 
 # if there are cells with maximal confidence < 50%, inspect the responsibilities 
 # of cells and relationship to counts and log odds
@@ -151,10 +155,5 @@ mnem.final.result <- mnem(R,starts=10,k=2)
 # log odd value in R, and mean count value in normalized transformed data
 # check.sureness(mnem.final.result,normalized.transformed.data,R)
 
-findAndVisualizeComponents(
-        data = R, 
-        mnem.result = mnem.final.result, 
-        umap.result = logodds.umap, 
-        save.path = '.')
-
+# we can also visualize the result in both UMAP and t-SNE
 graph.dim.reduction(mnem.final.result,logodds.umap,logodds.tsne)
