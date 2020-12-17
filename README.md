@@ -33,7 +33,7 @@ This contains the association between cell names and which S-gene is knocked dow
 
 ## Project overview
 
-A detailed description of the project can be found in report.pdf. In short, the raw scRNA-seq gene expression data was pre-processed into normalized transformed data using the function *preprocessData*, which was then processed into logodds data using the function *computeLogodd*. which is the input data for M&NEM modelling. Both normalized transformed data and logodds data can be found in *result/data*. 
+A detailed description of the project can be found in Report.pdf. In short, the raw scRNA-seq gene expression data was pre-processed into normalized transformed data using the function *preprocessData*, which was then processed into logodds data using the function *computeLogodd*. which is the input data for M&NEM modelling. Both normalized transformed data and logodds data can be found in *result/data*. 
 
 Next, a range of hyper-parameters for M&NEM were tuned for this dataset, and the result from the best set of hyper-parameters was analyzed. M&NEM inferred two components (i.e., sub-populations) with equal mixture weights, and each component has a distinctive network structure. Hard clustering assigned 52.6% and 47.4% of cells into each component respectively.
 
